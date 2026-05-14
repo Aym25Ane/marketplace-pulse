@@ -9,8 +9,38 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as VariantsRouteImport } from './routes/variants'
+import { Route as ReturnsRouteImport } from './routes/returns'
+import { Route as ProductsRouteImport } from './routes/products'
+import { Route as InventoryRouteImport } from './routes/inventory'
+import { Route as EngagementRouteImport } from './routes/engagement'
 import { Route as IndexRouteImport } from './routes/index'
 
+const VariantsRoute = VariantsRouteImport.update({
+  id: '/variants',
+  path: '/variants',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReturnsRoute = ReturnsRouteImport.update({
+  id: '/returns',
+  path: '/returns',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductsRoute = ProductsRouteImport.update({
+  id: '/products',
+  path: '/products',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InventoryRoute = InventoryRouteImport.update({
+  id: '/inventory',
+  path: '/inventory',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EngagementRoute = EngagementRouteImport.update({
+  id: '/engagement',
+  path: '/engagement',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -19,28 +49,102 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/engagement': typeof EngagementRoute
+  '/inventory': typeof InventoryRoute
+  '/products': typeof ProductsRoute
+  '/returns': typeof ReturnsRoute
+  '/variants': typeof VariantsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/engagement': typeof EngagementRoute
+  '/inventory': typeof InventoryRoute
+  '/products': typeof ProductsRoute
+  '/returns': typeof ReturnsRoute
+  '/variants': typeof VariantsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/engagement': typeof EngagementRoute
+  '/inventory': typeof InventoryRoute
+  '/products': typeof ProductsRoute
+  '/returns': typeof ReturnsRoute
+  '/variants': typeof VariantsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/engagement'
+    | '/inventory'
+    | '/products'
+    | '/returns'
+    | '/variants'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/engagement'
+    | '/inventory'
+    | '/products'
+    | '/returns'
+    | '/variants'
+  id:
+    | '__root__'
+    | '/'
+    | '/engagement'
+    | '/inventory'
+    | '/products'
+    | '/returns'
+    | '/variants'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  EngagementRoute: typeof EngagementRoute
+  InventoryRoute: typeof InventoryRoute
+  ProductsRoute: typeof ProductsRoute
+  ReturnsRoute: typeof ReturnsRoute
+  VariantsRoute: typeof VariantsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/variants': {
+      id: '/variants'
+      path: '/variants'
+      fullPath: '/variants'
+      preLoaderRoute: typeof VariantsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/returns': {
+      id: '/returns'
+      path: '/returns'
+      fullPath: '/returns'
+      preLoaderRoute: typeof ReturnsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/products': {
+      id: '/products'
+      path: '/products'
+      fullPath: '/products'
+      preLoaderRoute: typeof ProductsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inventory': {
+      id: '/inventory'
+      path: '/inventory'
+      fullPath: '/inventory'
+      preLoaderRoute: typeof InventoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/engagement': {
+      id: '/engagement'
+      path: '/engagement'
+      fullPath: '/engagement'
+      preLoaderRoute: typeof EngagementRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -53,17 +157,12 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  EngagementRoute: EngagementRoute,
+  InventoryRoute: InventoryRoute,
+  ProductsRoute: ProductsRoute,
+  ReturnsRoute: ReturnsRoute,
+  VariantsRoute: VariantsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
