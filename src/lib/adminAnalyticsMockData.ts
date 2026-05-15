@@ -439,3 +439,149 @@ export function getProblematicVariants(limit = 15) {
 }
 
 export const allProducts = products;
+
+// ==========================================================
+// Date-aware product analytics (for /products sub-page)
+// ==========================================================
+
+export interface ProductAnalyticsFilters {
+  days: number;            // 7, 30, 90, 365
+  search?: string;         // product name search
+  categoryId?: string;     // "all" or category id
+  status?: string;         // "all" | ACTIVE | DRAFT | ARCHIVED
+}
+
+function withinRange(dateStr: string, days: number) {
+  const cutoff = dateNDaysAgo(days - 1);
+  return new Date(dateStr) >= cutoff;
+}
+
+function filterProducts(f: ProductAnalyticsFilters) {
+  const q = (f.search ?? "").trim().toLowerCase();
+  return products.filter((p) => {
+    if (f.categoryId && f.categoryId !== "all" && p.categoryId !== f.categoryId) return false;
+    if (f.status && f.status !== "all" && p.status !== f.status) return false;
+    if (q && !p.name.toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+export function getProductKPIs(f: ProductAnalyticsFilters) {
+  const ps = filterProducts(f);
+  const pIds = new Set(ps.map((p) => p.id));
+  const items = orderItems.filter((oi) => isFulfilled(oi.status) && pIds.has(oi.productId) && withinRange(oi.date, f.days));
+  const units = items.reduce((s, oi) => s + oi.quantity, 0);
+  const orders = new Set(items.map((oi) => oi.orderId)).size;
+  const rets = returns.filter((r) => pIds.has(r.productId) && withinRange(r.date, f.days)).reduce((s, r) => s + r.quantity, 0);
+  const reactionsCount = reactions.filter((r) => pIds.has(r.productId) && withinRange(r.date, f.days)).length;
+  const commentsCount = comments.filter((c) => pIds.has(c.productId) && withinRange(c.date, f.days)).length;
+  return {
+    productCount: ps.length,
+    activeCount: ps.filter((p) => p.status === "ACTIVE").length,
+    units,
+    orders,
+    returnRate: units > 0 ? rets / units : 0,
+    engagement: reactionsCount + commentsCount,
+    avgUnitsPerProduct: ps.length ? units / ps.length : 0,
+  };
+}
+
+export function getTopProductsFiltered(f: ProductAnalyticsFilters, limit = 10) {
+  const ps = filterProducts(f);
+  const pIds = new Set(ps.map((p) => p.id));
+  const sold = new Map<string, number>();
+  orderItems
+    .filter((oi) => isFulfilled(oi.status) && pIds.has(oi.productId) && withinRange(oi.date, f.days))
+    .forEach((oi) => sold.set(oi.productId, (sold.get(oi.productId) ?? 0) + oi.quantity));
+  return Array.from(sold.entries())
+    .map(([pid, units]) => {
+      const p = products.find((x) => x.id === pid)!;
+      return { id: pid, name: p.name, category: categories.find((c) => c.id === p.categoryId)!.name, units };
+    })
+    .sort((a, b) => b.units - a.units)
+    .slice(0, limit);
+}
+
+export function getCategoryShareFiltered(f: ProductAnalyticsFilters) {
+  const ps = filterProducts(f);
+  const pIds = new Set(ps.map((p) => p.id));
+  const sold = new Map<string, number>();
+  orderItems
+    .filter((oi) => isFulfilled(oi.status) && pIds.has(oi.productId) && withinRange(oi.date, f.days))
+    .forEach((oi) => {
+      const p = products.find((x) => x.id === oi.productId)!;
+      sold.set(p.categoryId, (sold.get(p.categoryId) ?? 0) + oi.quantity);
+    });
+  return categories
+    .filter((c) => sold.has(c.id))
+    .map((c) => ({ name: c.name, value: sold.get(c.id) ?? 0 }));
+}
+
+export function getProductTrend(f: ProductAnalyticsFilters) {
+  const ps = filterProducts(f);
+  const pIds = new Set(ps.map((p) => p.id));
+  const map = new Map<string, number>();
+  for (let d = f.days - 1; d >= 0; d--) map.set(dateNDaysAgo(d).toISOString().slice(0, 10), 0);
+  orderItems
+    .filter((oi) => isFulfilled(oi.status) && pIds.has(oi.productId))
+    .forEach((oi) => {
+      if (map.has(oi.date)) map.set(oi.date, (map.get(oi.date) ?? 0) + oi.quantity);
+    });
+  return Array.from(map.entries()).map(([date, units]) => ({ date: date.slice(5), units }));
+}
+
+export function getProductStatusFiltered(f: ProductAnalyticsFilters) {
+  const ps = filterProducts(f);
+  const map = new Map<string, number>();
+  ps.forEach((p) => map.set(p.status, (map.get(p.status) ?? 0) + 1));
+  return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
+}
+
+export function getProductPerformanceFiltered(f: ProductAnalyticsFilters) {
+  const ps = filterProducts(f);
+  const pIds = new Set(ps.map((p) => p.id));
+  const sold = new Map<string, number>();
+  const ordersByProduct = new Map<string, Set<string>>();
+  const returned = new Map<string, number>();
+  orderItems
+    .filter((oi) => isFulfilled(oi.status) && pIds.has(oi.productId) && withinRange(oi.date, f.days))
+    .forEach((oi) => {
+      sold.set(oi.productId, (sold.get(oi.productId) ?? 0) + oi.quantity);
+      if (!ordersByProduct.has(oi.productId)) ordersByProduct.set(oi.productId, new Set());
+      ordersByProduct.get(oi.productId)!.add(oi.orderId);
+    });
+  returns
+    .filter((r) => pIds.has(r.productId) && withinRange(r.date, f.days))
+    .forEach((r) => returned.set(r.productId, (returned.get(r.productId) ?? 0) + r.quantity));
+
+  // stock per product
+  const stockPerProduct = new Map<string, number>();
+  variants.forEach((v) => {
+    if (!pIds.has(v.productId)) return;
+    const stock = warehouseStock.filter((s) => s.variantId === v.id).reduce((sum, s) => sum + (s.quantity - s.reservedQuantity), 0);
+    stockPerProduct.set(v.productId, (stockPerProduct.get(v.productId) ?? 0) + stock);
+  });
+
+  return ps.map((p) => {
+    const u = sold.get(p.id) ?? 0;
+    const r = returned.get(p.id) ?? 0;
+    return {
+      id: p.id,
+      name: p.name,
+      category: categories.find((c) => c.id === p.categoryId)!.name,
+      status: p.status,
+      orders: ordersByProduct.get(p.id)?.size ?? 0,
+      units: u,
+      stock: stockPerProduct.get(p.id) ?? 0,
+      returnRate: u > 0 ? r / u : 0,
+      variantCount: variants.filter((v) => v.productId === p.id).length,
+    };
+  }).sort((a, b) => b.units - a.units);
+}
+
+export function getLowStockProducts(f: ProductAnalyticsFilters, limit = 6) {
+  return getProductPerformanceFiltered(f)
+    .filter((p) => p.stock < 50 && p.status === "ACTIVE")
+    .sort((a, b) => a.stock - b.stock)
+    .slice(0, limit);
+}
