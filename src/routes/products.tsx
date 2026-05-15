@@ -57,7 +57,7 @@ function ProductsPage() {
   const lowStock = useMemo(() => getLowStockProducts(filters, 6), [days, q, cat, status]);
 
   const setSearch = (patch: Partial<{ days: number; q: string; cat: string; status: string }>) =>
-    navigate({ search: (prev) => ({ ...prev, ...patch }) as never });
+    navigate({ search: (prev: Record<string, unknown>) => ({ ...prev, ...patch }) as never });
 
   return (
     <Shell title="Product Analytics" subtitle="Search products, filter by date, and analyze catalog performance">
